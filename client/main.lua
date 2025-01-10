@@ -1,8 +1,23 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 local firstAlarm = false
 local smashing = false
+local targBusy = false
+local vitrine = {}
 
--- Functions
+local function sort(tbl, val)
+    table.sort(tbl, function(a, b)
+        return a[val] < b[val]
+    end)
+end
+
+RegisterNetEvent('qb-jewellery:client:setBusy', function(id, bool)
+    vitrine[id].isBusy = bool
+end)
+
+RegisterNetEvent('qb-jewellery:client:setOpened', function(id, bool)
+    vitrine[id].isOpened = bool
+end)
+
 
 local function loadParticle()
     if not HasNamedPtfxAssetLoaded('scr_jewelheist') then
@@ -34,71 +49,62 @@ local function validWeapon()
 end
 
 local function smashVitrine(k)
+    TriggerServerEvent('qb-jewellery:server:setBusy', k, true)
     if not firstAlarm then
         TriggerServerEvent('police:server:policeAlert', 'Suspicious Activity')
         firstAlarm = true
     end
+    -- if not QBCore.Functions.GetOnDuty('police') >= Config.RequiredCops then 
+        -- QBCore.Functions.Notify(Lang:t('error.minimum_police', {value = Config.RequiredCops}), 'error')
+        --TriggerServerEvent('qb-jewellery:server:setBusy', k, false)
+        -- targBusy = false
+        -- return
+    -- end
+    smashing = true
+    local animDict,animName  = 'missheist_jewel', 'smash_case'
+    local ped = PlayerPedId()
+    local plyCoords = GetOffsetFromEntityInWorldCoords(ped, 0, 0.6, 0)
+    local pedWeapon = GetSelectedPedWeapon(ped)
+    local random = math.random(1, 100)
 
-    QBCore.Functions.TriggerCallback('qb-jewellery:server:getCops', function(cops)
-        if cops >= Config.RequiredCops then
-            local animDict = 'missheist_jewel'
-            local animName = 'smash_case'
-            local ped = PlayerPedId()
-            local plyCoords = GetOffsetFromEntityInWorldCoords(ped, 0, 0.6, 0)
-            local pedWeapon = GetSelectedPedWeapon(ped)
-            if math.random(1, 100) <= 80 and not QBCore.Functions.IsWearingGloves() then
-                TriggerServerEvent('evidence:server:CreateFingerDrop', plyCoords)
-            elseif math.random(1, 100) <= 5 and QBCore.Functions.IsWearingGloves() then
-                TriggerServerEvent('evidence:server:CreateFingerDrop', plyCoords)
-                QBCore.Functions.Notify(Lang:t('error.fingerprints'), 'error')
-            end
-            smashing = true
-            QBCore.Functions.Progressbar('smash_vitrine', Lang:t('info.progressbar'), Config.WhitelistedWeapons[pedWeapon]['timeOut'], false, true, {
-                disableMovement = true,
-                disableCarMovement = true,
-                disableMouse = false,
-                disableCombat = true,
-            }, {}, {}, {}, function() -- Done
-                TriggerServerEvent('qb-jewellery:server:vitrineReward', k)
-                TriggerServerEvent('qb-jewellery:server:setTimeout')
-                TriggerServerEvent('police:server:policeAlert', 'Robbery in progress')
-                smashing = false
-                TaskPlayAnim(ped, animDict, 'exit', 3.0, 3.0, -1, 2, 0, 0, 0, 0)
-            end, function() -- Cancel
-                TriggerServerEvent('qb-jewellery:server:setVitrineState', 'isBusy', false, k)
-                smashing = false
-                TaskPlayAnim(ped, animDict, 'exit', 3.0, 3.0, -1, 2, 0, 0, 0, 0)
-            end)
-            TriggerServerEvent('qb-jewellery:server:setVitrineState', 'isBusy', true, k)
+    if random <= 80 and not QBCore.Functions.IsWearingGloves() then
+        TriggerServerEvent('evidence:server:CreateFingerDrop', plyCoords)
+    elseif random <= 5 and QBCore.Functions.IsWearingGloves() then
+        TriggerServerEvent('evidence:server:CreateFingerDrop', plyCoords)
+        QBCore.Functions.Notify(Lang:t('error.fingerprints'), 'error')
+    end
 
-            CreateThread(function()
-                while smashing do
-                    loadAnimDict(animDict)
-                    TaskPlayAnim(ped, animDict, animName, 3.0, 3.0, -1, 2, 0, 0, 0, 0)
-                    Wait(500)
-                    TriggerServerEvent('InteractSound_SV:PlayOnSource', 'breaking_vitrine_glass', 0.25)
-                    loadParticle()
-                    StartParticleFxLoopedAtCoord('scr_jewel_cab_smash', plyCoords.x, plyCoords.y, plyCoords.z, 0.0, 0.0, 0.0, 1.0, false, false, false, false)
-                    Wait(2500)
-                end
-            end)
-        else
-            QBCore.Functions.Notify(Lang:t('error.minimum_police', { value = Config.RequiredCops }), 'error')
+    CreateThread(function()
+        while smashing do
+            loadAnimDict(animDict)
+            TaskPlayAnim(ped, animDict, animName, 3.0, 3.0, -1, 2, 0, 0, 0, 0)
+            Wait(500)
+            TriggerServerEvent('InteractSound_SV:PlayOnSource', 'breaking_vitrine_glass', 0.25)
+            loadParticle()
+            StartParticleFxLoopedAtCoord('scr_jewel_cab_smash', plyCoords.x, plyCoords.y, plyCoords.z, 0.0, 0.0, 0.0, 1.0, false, false, false, false)
+            Wait(2500)
         end
     end)
-end
 
--- Events
-
-RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
-    QBCore.Functions.TriggerCallback('qb-jewellery:server:getVitrineState', function(result)
-        Config.Locations = result
+    QBCore.Functions.Progressbar('smash_vitrine', Lang:t('info.progressbar'), Config.WhitelistedWeapons[pedWeapon]['timeOut'], false, true, {
+        disableMovement = true,
+        disableCarMovement = true,
+        disableMouse = false,
+        disableCombat = true,
+    }, {}, {}, {}, function() -- Done
+        TriggerServerEvent('qb-jewellery:server:setBusy', k, false)
+        TriggerServerEvent('qb-jewellery:server:vitrineReward', k)
+        TriggerServerEvent('qb-jewellery:server:setTimeout')
+        TriggerServerEvent('police:server:policeAlert', 'Robbery in progress')
+        smashing = false
+        TaskPlayAnim(ped, animDict, 'exit', 3.0, 3.0, -1, 2, 0, 0, 0, 0)
+        targBusy = false
+    end, function()
+        smashing = false
+        targBusy = false
+        TriggerServerEvent('qb-jewellery:server:setBusy', k, false)
     end)
-end)
-
-RegisterNetEvent('qb-jewellery:client:setVitrineState', function(stateType, state, k)
-    Config.Locations[k][stateType] = state
-end)
+end
 
 -- Threads
 
@@ -114,32 +120,18 @@ CreateThread(function()
     EndTextCommandSetBlipName(Dealer)
 end)
 
-local listen = false
-local function Listen4Control(case)
-    listen = true
-    CreateThread(function()
-        while listen do
-            if IsControlJustPressed(0, 38) then
-                listen = false
-                if not Config.Locations[case]['isBusy'] and not Config.Locations[case]['isOpened'] then
-                    exports['qb-core']:KeyPressed()
-                    if validWeapon() then
-                        smashVitrine(case)
-                    else
-                        QBCore.Functions.Notify(Lang:t('error.wrong_weapon'), 'error')
-                    end
-                else
-                    exports['qb-core']:DrawText(Lang:t('general.drawtextui_broken'), 'left')
-                end
-            end
-            Wait(1)
-        end
-    end)
-end
 
 CreateThread(function()
+    QBCore.Functions.TriggerCallback('qb-jewelery:server:getLoc', function(data)
+        sort(data, 'id')
+        for k, v in ipairs (data) do 
+            table.insert(vitrine, {coords = v.coords, isOpened = v.isOpened, isBusy = v.isBusy, id = v.id})
+        end
+    end)
+    repeat Wait(1) until #vitrine >= 1 -- there to give time for vitrine to populate from callback
+
     if Config.UseTarget then
-        for k, v in pairs(Config.Locations) do
+        for k, v in pairs(vitrine) do
             exports['qb-target']:AddBoxZone('jewelstore' .. k, v.coords, 1, 1, {
                 name = 'jewelstore' .. k,
                 heading = 40,
@@ -153,14 +145,17 @@ CreateThread(function()
                         icon = 'fa fa-hand',
                         label = Lang:t('general.target_label'),
                         action = function()
+                            targBusy = true
                             if validWeapon() then
                                 smashVitrine(k)
                             else
+                                targBusy = false
                                 QBCore.Functions.Notify(Lang:t('error.wrong_weapon'), 'error')
                             end
                         end,
                         canInteract = function()
-                            if v['isOpened'] or v['isBusy'] then
+                            print(k)
+                            if v.isOpened or v.isBusy or targBusy then
                                 return false
                             end
                             return true
@@ -171,23 +166,39 @@ CreateThread(function()
             })
         end
     else
-        for k, v in pairs(Config.Locations) do
-            local boxZone = BoxZone:Create(v.coords, 1, 1, {
+        for k, v in pairs(vitrine) do
+            local boxZone = BoxZone:Create(v.coords, 0.5, 1, {
                 name = 'jewelstore' .. k,
-                heading = 40,
+                heading = v.coords.w,
                 minZ = v.coords.z - 1,
                 maxZ = v.coords.z + 1,
-                debugPoly = false
+                debugPoly = true
             })
             boxZone:onPlayerInOut(function(isPointInside)
+                if not exports['qb-policejob']:GetCops(0) then return end
+                if v.isBusy or v.isOpened then return end
                 if isPointInside then
-                    Listen4Control(k)
                     exports['qb-core']:DrawText(Lang:t('general.drawtextui_grab'), 'left')
+                    while not smashing do
+                        if IsControlJustPressed(0, 38) then
+                            if not vitrine[k].isBusy and not vitrine[k].isOpened then
+                                exports['qb-core']:KeyPressed()
+                                if validWeapon() then
+                                    smashVitrine(k)
+                                else
+                                    QBCore.Functions.Notify(Lang:t('error.wrong_weapon'), 'error')
+                                end
+                            else
+                                exports['qb-core']:DrawText(Lang:t('general.drawtextui_broken'), 'left') 
+                            end
+                        end
+                        Wait(1)
+                    end
                 else
-                    listen = false
                     exports['qb-core']:HideText()
                 end
             end)
         end
     end
 end)
+
