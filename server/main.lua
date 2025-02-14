@@ -74,12 +74,6 @@ local function getRewardBasedOnProbability(source, table)
 end
 
 -- Events
-
-RegisterNetEvent('qb-jewellery:server:setBusy', function(id, bool)
-    vitrineLocations[id].isBusy = bool
-    TriggerClientEvent('qb-jewellery:client:setBusy', -1, id, bool)
-end)
-
 local function setOpen(id, bool)
     vitrineLocations[id].isBusy = bool
     TriggerClientEvent('qb-jewellery:client:setOpened', -1, id, bool)
