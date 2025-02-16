@@ -175,7 +175,7 @@ CreateThread(function()
                 debugPoly = true
             })
             boxZone:onPlayerInOut(function(isPointInside)
-                if not exports['qb-policejob']:GetCops(0) then return end
+              --  if not exports['qb-policejob']:GetCops(0) then return end
                 if v.isBusy or v.isOpened then return end
                 if isPointInside then
                     exports['qb-core']:DrawText(Lang:t('general.drawtextui_grab'), 'left')
