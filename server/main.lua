@@ -32,13 +32,7 @@ local vitrineLocations  = {
     {coords = vector4(-623.96, -228.16, 38.06, 212.71),   isOpened = false,    isBusy = false, id = 20},
 }
 
-QBCore.Functions.CreateCallback('qb-jewelery:server:getLoc', function(_, cb)
-    cb(vitrineLocations)
-end)
-
-
--- Functions
-
+GlobalState.VitrineLocations = vitrineLocations
 local function exploitBan(id, reason)
     MySQL.insert('INSERT INTO bans (name, license, discord, ip, reason, expire, bannedby) VALUES (?, ?, ?, ?, ?, ?, ?)',
         {
@@ -73,20 +67,18 @@ local function getRewardBasedOnProbability(source, table)
     end
 end
 
--- Events
-
 RegisterNetEvent('qb-jewellery:server:setBusy', function(id, bool)
     vitrineLocations[id].isBusy = bool
-    TriggerClientEvent('qb-jewellery:client:setBusy', -1, id, bool)
+    GlobalState.VitrineLocations = vitrineLocations
 end)
 
-local function setOpen(id, bool)
-    vitrineLocations[id].isBusy = bool
-    TriggerClientEvent('qb-jewellery:client:setOpened', -1, id, bool)
+local function setOpen(id)
+    vitrineLocations[id].isOpened = true
+    GlobalState.VitrineLocations = vitrineLocations
     CreateThread(function()
         Wait(Config.Timeout)
-        vitrineLocations[id].isBusy = false
-        TriggerClientEvent('qb-jewellery:client:setBusy', -1, id, false)
+        vitrineLocations[id].isOpened = false
+        GlobalState.VitrineLocations = vitrineLocations
     end)
     return true
 end
@@ -118,10 +110,6 @@ local function handleCheat(Player)
 end
 
 -- events
-RegisterNetEvent('qb-jewellery:server:setBusy', function(id, bool)
-    vitrineLocations[id].isBusy = bool
-    TriggerClientEvent('qb-jewellery:client:setBusy', -1, id, bool)
-end)
 
 RegisterNetEvent('qb-jewellery:server:vitrineReward', function(vitrineIndex)
     local src = source
@@ -136,7 +124,7 @@ RegisterNetEvent('qb-jewellery:server:vitrineReward', function(vitrineIndex)
     if not checkDist(src, vitrineIndex) then
         handleCheat(Player)
     else
-        setOpen(vitrineIndex, true)
+        setOpen(vitrineIndex)
         getRewardBasedOnProbability(src, VitrineRewards)
     end
 end)
@@ -149,6 +137,11 @@ RegisterNetEvent('qb-jewellery:server:setTimeout', function()
             Citizen.Wait(Config.Timeout)
             TriggerEvent('qb-scoreboard:server:SetActivityBusy', 'jewellery', false)
             timeOut = false
+            for i = 1, #vitrineLocations do
+                vitrineLocations[i].isOpened = false
+                vitrineLocations[i].isBusy = false
+            end
+            GlobalState.VitrineLocations = vitrineLocations
         end)
     end
 end)

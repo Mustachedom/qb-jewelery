@@ -2,23 +2,6 @@ local QBCore = exports['qb-core']:GetCoreObject()
 local firstAlarm = false
 local smashing = false
 local targBusy = false
-local vitrine = {}
-
-local function sort(tbl, val)
-    table.sort(tbl, function(a, b)
-        return a[val] < b[val]
-    end)
-end
-
-RegisterNetEvent('qb-jewellery:client:setBusy', function(id, bool)
-    vitrine[id].isBusy = bool
-end)
-
-RegisterNetEvent('qb-jewellery:client:setOpened', function(id, bool)
-    vitrine[id].isOpened = bool
-end)
-
-
 local function loadParticle()
     if not HasNamedPtfxAssetLoaded('scr_jewelheist') then
         RequestNamedPtfxAsset('scr_jewelheist')
@@ -54,12 +37,12 @@ local function smashVitrine(k)
         TriggerServerEvent('police:server:policeAlert', 'Suspicious Activity')
         firstAlarm = true
     end
-    -- if not QBCore.Functions.GetOnDuty('police') >= Config.RequiredCops then 
-        -- QBCore.Functions.Notify(Lang:t('error.minimum_police', {value = Config.RequiredCops}), 'error')
-        --TriggerServerEvent('qb-jewellery:server:setBusy', k, false)
-        -- targBusy = false
-        -- return
-    -- end
+    --if not QBCore.Functions.GetOnDuty('police') >= Config.RequiredCops then 
+    --    QBCore.Functions.Notify(Lang:t('error.minimum_police', {value = Config.RequiredCops}), 'error')
+    --    TriggerServerEvent('qb-jewellery:server:setBusy', k, false)
+    --    targBusy = false
+    --    return
+    --end
     smashing = true
     local animDict,animName  = 'missheist_jewel', 'smash_case'
     local ped = PlayerPedId()
@@ -122,16 +105,8 @@ end)
 
 
 CreateThread(function()
-    QBCore.Functions.TriggerCallback('qb-jewelery:server:getLoc', function(data)
-        sort(data, 'id')
-        for k, v in ipairs (data) do 
-            table.insert(vitrine, {coords = v.coords, isOpened = v.isOpened, isBusy = v.isBusy, id = v.id})
-        end
-    end)
-    repeat Wait(1) until #vitrine >= 1 -- there to give time for vitrine to populate from callback
-
     if Config.UseTarget then
-        for k, v in pairs(vitrine) do
+        for k, v in pairs(GlobalState.VitrineLocations) do
             exports['qb-target']:AddBoxZone('jewelstore' .. k, v.coords, 1, 1, {
                 name = 'jewelstore' .. k,
                 heading = 40,
@@ -154,8 +129,7 @@ CreateThread(function()
                             end
                         end,
                         canInteract = function()
-                            print(k)
-                            if v.isOpened or v.isBusy or targBusy then
+                            if GlobalState.VitrineLocations[k].isbusy or GlobalState.VitrineLocations[k].isOpened or  targBusy then
                                 return false
                             end
                             return true
@@ -166,7 +140,7 @@ CreateThread(function()
             })
         end
     else
-        for k, v in pairs(vitrine) do
+        for k, v in pairs(GlobalState.VitrineLocations) do
             local boxZone = BoxZone:Create(v.coords, 0.5, 1, {
                 name = 'jewelstore' .. k,
                 heading = v.coords.w,
@@ -175,13 +149,13 @@ CreateThread(function()
                 debugPoly = true
             })
             boxZone:onPlayerInOut(function(isPointInside)
-                if not exports['qb-policejob']:GetCops(0) then return end
-                if v.isBusy or v.isOpened then return end
+                --if not exports['qb-policejob']:GetCops(0) then return end
+                if GlobalState.VitrineLocations[k].isBusy or GlobalState.VitrineLocations[k].isOpened then return end
                 if isPointInside then
                     exports['qb-core']:DrawText(Lang:t('general.drawtextui_grab'), 'left')
                     while not smashing do
                         if IsControlJustPressed(0, 38) then
-                            if not vitrine[k].isBusy and not vitrine[k].isOpened then
+                            if not GlobalState.VitrineLocations[k].isBusy and not GlobalState.VitrineLocations[k].isOpened then
                                 exports['qb-core']:KeyPressed()
                                 if validWeapon() then
                                     smashVitrine(k)
